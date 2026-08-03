@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logística - AP Frutas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{ --navy:#1F3864; --green-bg:#E7F0DA; }
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;background:#eef1f5;margin:0 auto;padding:16px;color:#222;max-width:900px}
+  h1{font-size:20px;margin:16px 0 12px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .tabs button{padding:8px 14px;border:none;border-radius:6px;background:#fff;cursor:pointer;font-weight:bold;color:var(--navy)}
+  .tabs button.active{background:var(--navy);color:#fff}
+  .card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  label{font-size:13px;font-weight:bold;display:block;margin-bottom:4px}
+  input,select{padding:8px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:100%}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end}
+  .row > div{flex:1;min-width:160px}
+  button.action{background:var(--navy);color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:bold}
+  button.action.secondary{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+  button.action.small{padding:6px 10px;font-size:12px}
+  button.action.danger{background:#E74C3C}
+  table.list{width:100%;border-collapse:collapse}
+  table.list th,table.list td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+  .toggle{cursor:pointer}
+
+  #chipsClientes{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px 12px;max-width:100%}
+  #chipsClientes label{display:flex;align-items:center;gap:6px;font-weight:normal;font-size:14px;margin:0}
+  #chipsClientes input{width:auto;flex:0 0 auto}
+
+  .coleta-linha{display:flex;gap:8px;margin-bottom:6px}
+  .coleta-linha input{flex:1}
+
+  /* área exportável — formato celular */
+  #exportArea{width:380px;background:#fff;font-family:Arial,Helvetica,sans-serif;border:1px solid #ccc}
+  .exp-head{background:var(--navy);color:#fff;text-align:center;font-weight:bold;font-style:italic;padding:10px;font-size:15px}
+  .exp-row{display:flex;border-bottom:1px solid #cfd8e6}
+  .exp-row .lbl{background:#fff;font-weight:bold;padding:8px;width:38%;border-right:1px solid #cfd8e6}
+  .exp-row .val{background:#dbe6f5;font-weight:bold;font-style:italic;padding:8px;width:62%}
+  .exp-section-title{background:var(--navy);color:#fff;font-weight:bold;font-style:italic;padding:8px;font-size:13px}
+  .exp-item{background:#dbe6f5;padding:8px;border-bottom:1px solid #fff;font-weight:bold;font-style:italic;text-align:center}
+  .exp-coleta-title{background:#c9d9ad;color:#274b0f;font-weight:bold;font-style:italic;padding:8px;font-size:13px}
+  .exp-coleta{background:var(--green-bg);padding:8px;border-bottom:1px solid #fff;font-weight:bold;font-style:italic;text-align:center;min-height:16px}
+  .exp-logo{text-align:center;padding:14px;font-weight:bold;color:var(--navy)}
+</style>
+</head>
+<body>
+
+<h1>Logística — AP Frutas</h1>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="rota">Rota do dia</button>
+  <button class="tab-btn" data-tab="motoristas">Cadastro de Motorista/Placa</button>
+</div>
+
+<!-- ===================== ROTA ===================== -->
+<div id="tab-rota" class="tab-content">
+  <div class="card">
+    <div class="row">
+      <div><label>Data</label><input type="date" id="rData"></div>
+      <div>
+        <label>Motorista</label>
+        <select id="rMotoristaSelect" onchange="preencherPlaca()"></select>
+      </div>
+      <div><label>Placa</label><input id="rPlaca" placeholder="Ex: RFP-4D27"></div>
+      <div><label>Destino</label><input id="rDestino" placeholder="Ex: São Paulo"></div>
+    </div>
+
+    <label>Entregas (Clientes)</label>
+    <div class="chips" id="chipsClientes"></div>
+
+    <label style="margin-top:14px">Coletas (Fornecedores) — campo editável</label>
+    <div id="coletasWrap"></div>
+    <button class="action secondary small" onclick="addLinhaColeta()">+ adicionar linha</button>
+
+    <div style="margin-top:16px">
+      <button class="action" onclick="salvarRota()">Salvar rota</button>
+      <button class="action secondary" onclick="gerarImagem()">📷 Gerar imagem</button>
+    </div>
+  </div>
+
+  <div id="rotasSalvas" class="card"></div>
+</div>
+
+<!-- ===================== CADASTRO MOTORISTA/PLACA ===================== -->
+<div id="tab-motoristas" class="tab-content" style="display:none">
+  <div class="card">
+    <h3>Novo motorista</h3>
+    <div class="row">
+      <div><label>Nome</label><input id="novoMotoristaNome" placeholder="Ex: Julio Henrique"></div>
+      <div><label>Placa</label><input id="novoMotoristaPlaca" placeholder="Ex: RFP-4D27"></div>
+      <div style="flex:0 0 auto"><button class="action" onclick="criarMotorista()">Adicionar</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <table class="list" id="tabelaMotoristas"><thead><tr><th>Nome</th><th>Placa</th><th>Ativo</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+<div style="position:fixed;top:-10000px;left:-10000px">
+  <div id="exportArea"></div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://cagorqpetzsgmttkvlcm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhZ29ycXBldHpzZ210dGt2bGNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNzI3NDAsImV4cCI6MjA5OTg0ODc0MH0.2BIcQLPHxEVsGJK1tMoOGhFDu6Viu8X_HGNICl46cso";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let clientes = [], motoristas = [];
+
+// ---------- Navegação ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.style.display='none');
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).style.display='block';
+  });
+});
+
+async function carregarBase(){
+  const {data:c} = await sb.from('clientes').select('*').eq('ativo', true).order('nome');
+  clientes = c || [];
+  document.getElementById('chipsClientes').innerHTML = clientes.map(c=>`
+    <label><input type="checkbox" value="${c.id}" data-nome="${c.nome}"> ${c.nome}</label>
+  `).join('');
+
+  const {data:m} = await sb.from('motoristas').select('*').order('nome');
+  motoristas = m || [];
+  renderMotoristas();
+  document.getElementById('rMotoristaSelect').innerHTML =
+    '<option value="">Selecione...</option>' +
+    motoristas.filter(x=>x.ativo).map(x=>`<option value="${x.id}" data-placa="${x.placa||''}">${x.nome}</option>`).join('');
+
+  document.getElementById('coletasWrap').innerHTML='';
+  addLinhaColeta();
+  carregarRotasSalvas();
+}
+
+function preencherPlaca(){
+  const sel = document.getElementById('rMotoristaSelect');
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('rPlaca').value = opt ? (opt.dataset.placa || '') : '';
+}
+
+// ---------- Cadastro de motoristas ----------
+function renderMotoristas(){
+  const tb = document.querySelector('#tabelaMotoristas tbody');
+  tb.innerHTML = motoristas.map(m=>`
+    <tr>
+      <td>${m.nome}</td>
+      <td>${m.placa||''}</td>
+      <td class="toggle" onclick="toggleMotoristaAtivo('${m.id}', ${m.ativo})">${m.ativo? '✅':'⛔'}</td>
+      <td><button class="action secondary small" onclick="editarMotorista('${m.id}','${(m.nome||'').replace(/'/g,"\\'")}','${(m.placa||'').replace(/'/g,"\\'")}')">Editar</button></td>
+    </tr>`).join('');
+}
+async function criarMotorista(){
+  const nome = document.getElementById('novoMotoristaNome').value.trim();
+  const placa = document.getElementById('novoMotoristaPlaca').value.trim();
+  if(!nome) return;
+  await sb.from('motoristas').insert({nome, placa, ativo:true});
+  document.getElementById('novoMotoristaNome').value='';
+  document.getElementById('novoMotoristaPlaca').value='';
+  carregarBase();
+}
+async function toggleMotoristaAtivo(id, ativo){
+  await sb.from('motoristas').update({ativo: !ativo}).eq('id', id);
+  carregarBase();
+}
+async function editarMotorista(id, nomeAtual, placaAtual){
+  const novoNome = prompt('Nome do motorista:', nomeAtual);
+  if(novoNome===null) return;
+  const novaPlaca = prompt('Placa:', placaAtual);
+  if(novaPlaca===null) return;
+  await sb.from('motoristas').update({nome:novoNome.trim(), placa:novaPlaca.trim()}).eq('id', id);
+  carregarBase();
+}
+
+// ---------- Rota ----------
+function addLinhaColeta(valor=''){
+  const wrap = document.getElementById('coletasWrap');
+  const div = document.createElement('div');
+  div.className = 'coleta-linha';
+  div.innerHTML = `<input type="text" placeholder="Ex: Coleta Ceasa Palato" value="${valor}">
+    <button class="action danger small" onclick="this.parentElement.remove()">x</button>`;
+  wrap.appendChild(div);
+}
+
+function clientesSelecionados(){
+  return [...document.querySelectorAll('#chipsClientes input:checked')].map(i=>({id:i.value, nome:i.dataset.nome}));
+}
+function coletasPreenchidas(){
+  return [...document.querySelectorAll('#coletasWrap input')].map(i=>i.value.trim()).filter(Boolean);
+}
+function motoristaSelecionadoNome(){
+  const sel = document.getElementById('rMotoristaSelect');
+  const opt = sel.options[sel.selectedIndex];
+  return opt ? opt.textContent : '';
+}
+
+async function salvarRota(){
+  const data = document.getElementById('rData').value;
+  const motorista = motoristaSelecionadoNome();
+  const placa = document.getElementById('rPlaca').value.trim();
+  const destino = document.getElementById('rDestino').value.trim();
+  if(!data || !motorista || !placa || !destino){ alert('Preencha data, motorista, placa e destino.'); return; }
+
+  const {data:rota} = await sb.from('rotas').insert({data, motorista, placa, destino}).select().single();
+
+  const entregas = clientesSelecionados();
+  if(entregas.length){
+    await sb.from('rota_entregas').insert(entregas.map((c,i)=>({rota_id:rota.id, cliente_id:c.id, ordem:i})));
+  }
+  const coletas = coletasPreenchidas();
+  if(coletas.length){
+    await sb.from('rota_coletas').insert(coletas.map((texto,i)=>({rota_id:rota.id, texto, ordem:i})));
+  }
+  alert('Rota salva!');
+  carregarRotasSalvas();
+}
+
+async function carregarRotasSalvas(){
+  const {data} = await sb.from('rotas').select('*').order('data', {ascending:false}).limit(10);
+  const wrap = document.getElementById('rotasSalvas');
+  if(!data || !data.length){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = '<h3>Últimas rotas</h3><table class="list">' +
+    data.map(r=>`<tr>
+      <td>${new Date(r.data+'T00:00:00').toLocaleDateString('pt-BR')}</td>
+      <td>${r.motorista}</td>
+      <td>${r.placa}</td>
+      <td>${r.destino}</td>
+      <td><button class="action secondary small" onclick="gerarImagemDeRota('${r.id}')">📷 imagem</button></td>
+    </tr>`).join('') + '</table>';
+}
+
+async function montarHtmlRota(rota){
+  const {data:entregas} = await sb.from('rota_entregas').select('*, clientes(nome)').eq('rota_id', rota.id).order('ordem');
+  const {data:coletas} = await sb.from('rota_coletas').select('*').eq('rota_id', rota.id).order('ordem');
+  const dataFmt = new Date(rota.data+'T00:00:00').toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+  let html = `
+    <div class="exp-logo">AP<br><span style="font-size:11px">FRUTAS•VERDURAS</span></div>
+    <div class="exp-head">${dataFmt}</div>
+    <div class="exp-row"><div class="lbl">Motorista</div><div class="val">${rota.motorista}</div></div>
+    <div class="exp-row"><div class="lbl">Placa</div><div class="val">${rota.placa}</div></div>
+    <div class="exp-row"><div class="lbl">Destino</div><div class="val">${rota.destino}</div></div>
+    <div class="exp-section-title">Entregas(Clientes)</div>`;
+  (entregas||[]).forEach(e=> html += `<div class="exp-item">${e.clientes?.nome||''}</div>`);
+  if(!entregas || !entregas.length) html += `<div class="exp-item">&nbsp;</div>`;
+
+  html += `<div class="exp-coleta-title">Coletas(Fornecedores)</div>`;
+  (coletas||[]).forEach(c=> html += `<div class="exp-coleta">${c.texto}</div>`);
+  for(let i=(coletas?coletas.length:0); i<3; i++) html += `<div class="exp-coleta">&nbsp;</div>`;
+
+  html += `<div class="exp-logo">AP<br><span style="font-size:11px">FRUTAS•VERDURAS</span></div>`;
+  return html;
+}
+
+async function baixarImagem(rota){
+  const area = document.getElementById('exportArea');
+  area.innerHTML = await montarHtmlRota(rota);
+  await new Promise(r=>setTimeout(r,50));
+  const canvas = await html2canvas(area, {backgroundColor:'#fff', scale:2});
+  const link = document.createElement('a');
+  link.download = `rota-${rota.destino}-${rota.data}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function gerarImagem(){
+  const rota = {
+    data: document.getElementById('rData').value,
+    motorista: motoristaSelecionadoNome(),
+    placa: document.getElementById('rPlaca').value.trim(),
+    destino: document.getElementById('rDestino').value.trim(),
+  };
+  if(!rota.data || !rota.motorista || !rota.placa || !rota.destino){ alert('Preencha data, motorista, placa e destino.'); return; }
+  const dataFmt = new Date(rota.data+'T00:00:00').toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const entregas = clientesSelecionados();
+  const coletas = coletasPreenchidas();
+
+  let html = `
+    <div class="exp-logo">AP<br><span style="font-size:11px">FRUTAS•VERDURAS</span></div>
+    <div class="exp-head">${dataFmt}</div>
+    <div class="exp-row"><div class="lbl">Motorista</div><div class="val">${rota.motorista}</div></div>
+    <div class="exp-row"><div class="lbl">Placa</div><div class="val">${rota.placa}</div></div>
+    <div class="exp-row"><div class="lbl">Destino</div><div class="val">${rota.destino}</div></div>
+    <div class="exp-section-title">Entregas(Clientes)</div>`;
+  entregas.forEach(e=> html += `<div class="exp-item">${e.nome}</div>`);
+  if(!entregas.length) html += `<div class="exp-item">&nbsp;</div>`;
+
+  html += `<div class="exp-coleta-title">Coletas(Fornecedores)</div>`;
+  coletas.forEach(c=> html += `<div class="exp-coleta">${c}</div>`);
+  for(let i=coletas.length; i<3; i++) html += `<div class="exp-coleta">&nbsp;</div>`;
+  html += `<div class="exp-logo">AP<br><span style="font-size:11px">FRUTAS•VERDURAS</span></div>`;
+
+  const area = document.getElementById('exportArea');
+  area.innerHTML = html;
+  await new Promise(r=>setTimeout(r,50));
+  const canvas = await html2canvas(area, {backgroundColor:'#fff', scale:2});
+  const link = document.createElement('a');
+  link.download = `rota-${rota.destino}-${rota.data}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function gerarImagemDeRota(id){
+  const {data:rota} = await sb.from('rotas').select('*').eq('id', id).single();
+  await baixarImagem(rota);
+}
+
+carregarBase();
+</script>
+</body>
+</html>
