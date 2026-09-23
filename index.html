@@ -112,8 +112,9 @@
 
   <div class="card" id="editRotaCard" style="display:none">
     <h3>Editar rota — <span id="editRotaInfo"></span></h3>
-    <p style="color:var(--muted);font-size:13px;margin:-6px 0 12px">Só é possível alterar motorista, placa e coletas. Data, destino e entregas não mudam aqui.</p>
+    <p style="color:var(--muted);font-size:13px;margin:-6px 0 12px">Só é possível alterar data, motorista, placa e coletas. Destino e entregas não mudam aqui.</p>
     <div class="row">
+      <div><label>Data</label><input type="date" id="editDataInput"></div>
       <div><label>Motorista</label><select id="editMotoristaSelect"></select></div>
       <div><label>Placa</label><select id="editPlacaSelect"></select></div>
     </div>
@@ -488,6 +489,7 @@ async function abrirEdicaoRota(id){
   document.getElementById('editRotaInfo').textContent =
     `${new Date(rota.data+'T00:00:00').toLocaleDateString('pt-BR')} · ${rota.destino}`;
 
+  document.getElementById('editDataInput').value = rota.data;
   document.getElementById('editMotoristaSelect').innerHTML =
     motoristas.filter(x=>x.ativo).map(x=>`<option value="${x.nome}" ${x.nome===rota.motorista?'selected':''}>${x.nome}</option>`).join('');
   document.getElementById('editPlacaSelect').innerHTML =
@@ -512,11 +514,12 @@ function fecharEdicaoRota(){
 
 async function salvarEdicaoRota(){
   if(!rotaEmEdicaoId) return;
+  const data = document.getElementById('editDataInput').value;
   const motorista = document.getElementById('editMotoristaSelect').value;
   const placa = document.getElementById('editPlacaSelect').value;
-  if(!motorista || !placa){ alert('Selecione motorista e placa.'); return; }
+  if(!data || !motorista || !placa){ alert('Preencha data, motorista e placa.'); return; }
 
-  await sb.from('rotas').update({motorista, placa}).eq('id', rotaEmEdicaoId);
+  await sb.from('rotas').update({data, motorista, placa}).eq('id', rotaEmEdicaoId);
 
   // Substitui as coletas: apaga as antigas e grava as novas
   await sb.from('rota_coletas').delete().eq('rota_id', rotaEmEdicaoId);
